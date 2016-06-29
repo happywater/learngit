@@ -1,0 +1,526 @@
+Linux服务器：
+1、安装完虚拟机，系统为Centos6.7最小化版本
+
+设置网络，模式为桥接网络
+[root@localhost ~]# vi /etc/sysconfig/network-scripts/ifcfg-eth0
+
+DEVICE=eth0
+HWADDR=00:0C:29:E2:96:18
+TYPE=Ethernet
+UUID=9f1b5548-b709-498e-84c5-9a749b82c455
+ONBOOT=yes
+NM_CONTROLLED=yes
+IPADDR=172.16.21.88
+GATEWAY=172.16.21.1
+DNS1=202.96.128.86
+DNS2=8.8.8.8
+NETMASK=255.255.255.0
+#BOOTPROTO=dhcp
+
+解决域名问题
+echo "nameserver 8.8.8.8" >>/etc/resolv.conf
+echo "nameserver 8.8.4.4" >>/etc/resolv.conf
+
+查看系统信息
+rpm -q yum python centos-release
+
+yum install -y lrzsz wget
+
+
+	1. 备份你的原镜像文件，以免出错后可以恢复。
+mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.backup
+
+	2. 下载新的CentOS-Base.repo 到/etc/yum.repos.d/
+
+		* CentOS 5
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-5.repo
+
+		* CentOS 6
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-6.repo
+
+		* CentOS 7
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+
+
+	3. 运行yum makecache生成缓存
+yum clean all
+yum makecache
+
+
+
+
+安装文件上传等基础
+[root@localhost yum.repos.d]# yum -y install wget lrzsz zip unzip gcc gcc-c++ jemalloc tcl
+
+安装redis以及基础设置
+rz 上传redis安装包
+[root@localhost ~]# tar xzf redis-3.0.5.tar.gz 
+[root@localhost ~]# cd redis-3.0.5
+[root@localhost redis-3.0.5]# make
+[root@localhost redis-3.0.5]# make install
+[root@localhost redis-3.0.5]# cd utils
+[root@localhost utils]# chmod +x install_server.sh
+[root@localhost utils]# ./install_server.sh
+[root@localhost utils]# service redis_6379 status
+
+操作命令：
+[root@localhost utils]# service redis_6379 restart
+[root@localhost utils]# service redis_6379 stop
+
+端口和配置信息：
+Port           : 6379
+Config file    : /etc/redis/6379.conf
+Log file       : /var/log/redis_6379.log
+Data dir       : /var/lib/redis/6379
+Executable     : /usr/local/bin/redis-server
+
+安装supervisor监控
+[root@localhost ~]# yum -y install python-setuptools
+[root@localhost ~]# easy_install supervisor
+[root@localhost ~]# echo_supervisord_conf > /etc/supervisord.conf
+[root@localhost ~]# cd /etc/init.d/
+上传supervisor管理文件
+[root@localhost init.d]# chmod +x /etc/init.d/supervisord
+[root@localhost init.d]# chkconfig supervisord on
+[root@localhost init.d]# service supervisord start
+上传配置文件,覆盖/etc/supervisord.conf
+
+操作命令：
+//start|stop|status|restart|reload|force-reload|condrestart
+[root@localhost init.d]# service supervisord start
+[root@localhost init.d]# service supervisord status
+[root@localhost init.d]# service supervisord stop
+
+注意，如果遇到双网卡的情况
+[root@linux ~]# ifdown {interface} 
+[root@linux ~]# ifup eth0
+需要关闭一个网卡
+
+//额外安装
+[root@localhost init.d]# easy_install superlance
+
+端口及帐号
+端口：IP:8888
+admin 密码 @xwcrm123
+
+安装mongodb
+上传安装文件
+[root@localhost ~]# tar -xzf mongodb-linux-x86_64-2.4.14.tgz
+[root@localhost ~]# mv mongodb-linux-x86_64-2.4.14 mongodb
+[root@localhost ~]# cp -rf ./mongodb /usr/local/
+[root@localhost ~]# chmod 755 /usr/local/mongodb/bin/ -R
+[root@localhost ~]# mkdir -p /var/mongodb/data/
+[root@localhost ~]# mkdir -p /var/mongodb/logs/
+[root@localhost ~]# chmod +w /var/mongodb/data/ -R
+[root@localhost ~]# chmod +w /var/mongodb/logs/ -R
+[root@localhost ~]# groupadd mongod
+[root@localhost ~]# useradd -s /sbin/nologin -d /var/mongodb/ -g mongod mongod
+[root@localhost ~]# chown -R mongod:mongod /var/mongodb 
+[root@localhost ~]# mkdir -p /var/run/mongodb
+[root@localhost ~]# chmod +w /var/run/mongodb -R
+[root@localhost init.d]# ln -s /usr/local/mongodb/bin/mongo /usr/bin/mongo
+[root@localhost init.d]# ln -s /usr/local/mongodb/bin/mongod /usr/bin/mongod
+上传配置文件到/etc/mongod.conf
+上传管理文件到/etc/init.d/mongod
+[root@localhost init.d]# chmod +x /etc/init.d/mongod
+[root@localhost init.d]# service mongod start 
+[root@localhost init.d]# chkconfig mongod on
+
+上传备份文件到 cd /var/lib/mongotemp/
+[root@localhost mongotemp]# unzip mongo-crm.zip
+
+出现unclean无法启动时的解决办法
+启动mongodb时，提示Unclean shutdown detected mongodb，解决方法很简单
+删除掉该文件:
+/data/mongo.lock
+再执行:
+mongod --repair --dbpath f:/data(data所在的位置)
+正确关闭mongod 的方法：进入mongo shell
+
+
+还原备份
+[root@localhost mongodb]# cd /usr/local/mongodb/bin/
+数据备份
+[root@localhost bin]# ./mongodump -h 127.0.0.1 -d crm -o /var/lib/pgsql/9.4/backups/
+数据恢复
+./mongorestore -h 127.0.0.1 -d crm --drop --directoryperdb /var/lib/pgsql/9.4/backups/crm
+
+操作命令
+[root@localhost init.d]# service mongod start
+[root@localhost init.d]# service mongod status
+[root@localhost init.d]# service mongod stop
+
+安装postgresql数据库
+上传数据库rpm
+[root@localhost ~]# yum install pgdg-redhat94-9.4-1.noarch.rpm
+[root@localhost ~]# yum install postgresql94-server postgresql94-contrib
+[root@localhost ~]# service postgresql-9.4 initdb
+[root@localhost ~]# service postgresql-9.4 start
+[root@localhost ~]# chkconfig postgresql-9.4 on
+[root@localhost ~]# setsebool -P httpd_can_network_connect_db 1
+[root@localhost ~]# su - postgres
+-bash-4.1$ psql
+设置密码(超级管理员密码@xwcrm123)
+postgres=# \password postgres 
+Enter new password: 
+Enter it again: 
+postgres=# \q
+设置拓展
+postgres=# CREATE EXTENSION adminpack;
+CREATE EXTENSION
+上传配置文件到/var/lib/pgsql/9.4/data/pg_hba.conf
+上传配置文件到/var/lib/pgsql/9.4/data/postgresql.conf
+
+[root@localhost 9.4]# service postgresql-9.4 start
+
+关闭selinux
+[root@localhost ~]# sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
+需要重启需要重启需要重启需要重启需要重启需要重启需要重启需要重启需要重启
+需要重启需要重启
+需要重启
+需要重启
+需要重启
+
+编辑防火墙
+[root@localhost ~]# vi /etc/sysconfig/iptables
+上传配置文件
+[root@localhost sysconfig]# service iptables restart
+
+设置业务数据库
+[root@localhost bin]# cd /var/lib/pgsql/9.4/backups/
+上传两个数据库基础文件
+
+新增相应的角色
+[root@localhost ~]# su - postgres
+-bash-4.1$ psql
+新增数据库角色，执行以下语句
+-- Role: crm
+
+-- DROP ROLE crm;
+
+CREATE ROLE crm LOGIN ENCRYPTED PASSWORD 'md549364b9f425ce74820c4e28ce64b8a70' NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION CONNECTION LIMIT 2000; COMMENT ON ROLE crm IS 'crm';
+
+-- Role: etion
+
+-- DROP ROLE etion;
+
+CREATE ROLE etion LOGIN  ENCRYPTED PASSWORD 'md5052431556a524b03a0f821bce0e57dc8'  SUPERUSER INHERIT CREATEDB CREATEROLE NOREPLICATION CONNECTION LIMIT 2000;COMMENT ON ROLE etion IS 'etion';
+
+导出一个数据库的结构：（这条是备注的）
+[root@localhost home]# pg_dump -h 127.0.0.1 -p 5432 -U postgres -s xw_dl_1010063 > /home/1010063.sql
+
+创建数据库
+[root@localhost data]# cd /usr/pgsql-9.4/bin/
+[root@localhost bin]# ./createdb -E UTF8 -O etion -h localhost -U postgres xuanwubalance
+Password:
+[root@localhost bin]# ./createdb -E UTF8 -O etion -h localhost -U postgres xw_dc_center
+Password:  
+[root@localhost bin]# ./createdb -E UTF8 -O etion -h localhost -U postgres xw_dl_1010063
+Password:
+[root@localhost bin]# ./createdb -E UTF8 -O etion -h localhost -U postgres xw_dc_entcommon
+Password:
+[root@localhost bin]#
+
+恢复数据库(需要先上传文件)
+ [root@localhost bin]# ./pg_restore -h 127.0.0.1 -p 5432 -U postgres -W -d xuanwubalance -v "/var/lib/pgsql/9.4/backups/xuanwubalance.backup"
+[root@localhost bin]# ./pg_restore -h 127.0.0.1 -p 5432 -U postgres -W -d xw_dc_center -v "/var/lib/pgsql/9.4/backups/xw_dc_center.backup"
+[root@localhost bin]# ./pg_restore -h 127.0.0.1 -p 5432 -U postgres -W -d xw_dl_1010063 -v "/var/lib/pgsql/9.4/backups/xw_dl_1010063.backup"
+[root@localhost bin]# ./pg_restore -h 127.0.0.1 -p 5432 -U postgres -W -d xw_dc_entcommon -v "/var/lib/pgsql/9.4/backups/xw_dc_entcommon.backup"
+
+备份数据库
+[root@localhost bin]# ./pg_dump -h 127.0.0.1 -p 5432 -U postgres -W -F c -b -v -f "/var/lib/pgsql/9.4/backups/xuanwubalance.backup" xuanwubalance
+[root@localhost bin]# ./pg_dump -h 127.0.0.1 -p 5432 -U postgres -W -F c -b -v -f "/var/lib/pgsql/9.4/backups/xw_dc_center.backup" xw_dc_center
+[root@localhost backups]# ./pg_dump -h 127.0.0.1 -p 5432 -U postgres -W -F c -b -v -f "/var/lib/pgsql/9.4/backups/xw_dl_1010063.backup" xw_dl_1010063
+
+
+使用新的初始化数据则不需要以下内容
+------------不需要-------------------
+修复数据库的表（balance数据库）
+CREATE TABLE "public"."com_t_devicebind" (
+"devicetype" int4 NOT NULL,
+"userno" int4 NOT NULL,
+"syscode" varchar(20) COLLATE "default" NOT NULL,
+"deploy" int4 DEFAULT 2 NOT NULL,
+"deviceid" uuid NOT NULL,
+"token" varchar(64) COLLATE "default",
+CONSTRAINT "pk_devicebind" PRIMARY KEY ("deviceid", "userno")
+)
+WITH (OIDS=FALSE)
+;
+
+ALTER TABLE "public"."com_t_devicebind" OWNER TO "postgres";
+
+COMMENT ON COLUMN "public"."com_t_devicebind"."devicetype" IS '设备类型: 3 andriod, 4 iPhone;';
+
+COMMENT ON COLUMN "public"."com_t_devicebind"."userno" IS '用户e号';
+
+COMMENT ON COLUMN "public"."com_t_devicebind"."syscode" IS '系统编码: sys00011';
+
+COMMENT ON COLUMN "public"."com_t_devicebind"."deploy" IS '1:开发; 2: 生产状态';
+
+---------------------------------------
+CREATE TABLE "public"."com_t_syscert" (
+"cid" uuid NOT NULL,
+"syscode" varchar(10) COLLATE "default" NOT NULL,
+"deploy" int4 NOT NULL,
+"cert" varchar(50) COLLATE "default" NOT NULL,
+"certkey" varchar(50) COLLATE "default" NOT NULL,
+"remark" varchar(200) COLLATE "default",
+CONSTRAINT "com_t_syscert_pkey" PRIMARY KEY ("cid")
+)
+WITH (OIDS=FALSE)
+;
+
+ALTER TABLE "public"."com_t_syscert" OWNER TO "etion";
+
+COMMENT ON COLUMN "public"."com_t_syscert"."deploy" IS '部署状态 1: 开发; 2:生产';
+
+COMMENT ON COLUMN "public"."com_t_syscert"."cert" IS '证书名字';
+
+COMMENT ON COLUMN "public"."com_t_syscert"."certkey" IS '证书秘钥';
+
+COMMENT ON COLUMN "public"."com_t_syscert"."remark" IS '备注';
+
+INSERT INTO "public"."com_t_syscert" ("cid", "syscode", "deploy", "cert", "certkey", "remark") VALUES ('fc7b9abe-3bde-45c7-a47e-ff00f2f7c39f', 'SYS00011', '1', 'aps_development.pem', 'aps_development_nopass.key', 'crm开发模式');
+INSERT INTO "public"."com_t_syscert" ("cid", "syscode", "deploy", "cert", "certkey", "remark") VALUES ('fc7b9abe-3bde-45c7-a47e-ff00f2f7c89f', 'SYS00011', '2', 'aps_production.pem', 'aps_production_nopass.key', 'crm生产模式');
+
+
+-------------------------------------------------------不需要--------------------
+打包命令
+zip -r ./xahot.zip ./* -r表示递归
+
+
+部署golang和nsq 部署到对外的那台nginx里
+[root@localhost ~]# cd ~
+上传home.zip
+[root@localhost ~]# unzip home.zip
+[root@localhost ~]# cp -rf ./home/* /home/
+[root@localhost ~]# chmod +x /home/nsq/bin/*
+
+修改nsq配置文件
+ [root@localhost config]# cd /home/nsq/config/
+ [root@localhost config]# vi nsqadmin.cfg
+修改三个配置文件的IP为本机IP
+
+创建日志需要的文件夹
+[root@localhost supervisor]# mkdir -p /var/log/nsq
+[root@localhost supervisor]# mkdir -p /var/log/crm/
+
+赋予执行权限
+[root@localhost crm]# chmod +x /home/crm/authservice/authservice 
+[root@localhost crm]# chmod +x /home/crm/fileservice/fileservice
+[root@localhost crm]# chmod +x /home/crm/flowservice/flowservice
+[root@localhost crm]# chmod +x /home/crm/msgconsumer/msgconsumer
+[root@localhost crm]# chmod +x /home/crm/pluginservice/pluginservice
+[root@localhost crm]# chmod +x /home/crm/pusher/pusher
+[root@localhost crm]# chmod +x /home/crm/pushservice/pushservice
+
+需要去/home/crm目录下，查看每一个的config文件，如果有具体的ip地址的话，则需要更改为对应的IP地址
+
+[root@localhost supervisor]# service supervisord restart
+
+安装htop
+上传htop文件
+[root@localhost ~]# tar xzf htop-1.0.3.tar.gz
+[root@localhost ~]# cd htop-1.0.3
+yum install -y ncurses-devel
+[root@localhost htop-1.0.3]# ./configure
+[root@localhost htop-1.0.3]# make && make install
+
+安装nginx1.8
+上传nginx的rpm
+[root@localhost ~]# rpm -Uvh nginx-latest.rpm
+yum install nginx18
+
+ [root@localhost ~]# service nginx start
+[root@localhost ~]# chkconfig nginx on
+ 
+配置文件地址：
+/etc/nginx/nginx.conf
+
+windows安装过程
+安装editplus
+安装winrar
+安装NDP451
+添加功能向导-Telnet客户端 WINRMIIS拓展（IIS里全部选择）
+打开IIS，设置应用程序池DefaultPool为4.0
+删除默认网站
+在相应盘建立网站文件夹
+webroot/MCRM_Web
+webroot/MCRM_Service
+回到IIS添加网站
+修改应用程序池为4.0
+CRM_WEB：
+会话状态设置为未启用
+身份验证（Form和匿名）启用
+CRM_Service:
+会话状态设置为在进程中
+身份验证（Form和匿名）启用
+
+服务器时间同步：（如果有需要的话）
+[root@localhost ~]# yum -y install ntp
+[root@localhost ~]# chkconfig ntpd on
+[root@localhost ~]# chkconfig --list
+
+# 安装ntp服务的软件包
+sudo yum install ntp
+
+# 将ntp服务设置为缺省启动
+sudo chkconfig ntp on
+
+# 修改启动参数，增加-g -x参数，允许ntp服务在系统时间误差较大时也能正常工作
+sudo vi /etc/sysconfig/ntpd
+
+# 启动ntp服务
+sudo service ntpd restart
+# Set timezone
+rm -rf /etc/localtime
+ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+
+设置最大文件数和系统设置
+# /etc/security/limits.conf
+[ -e /etc/security/limits.d/*nproc.conf ] && rename nproc.conf nproc.conf_bk /etc/security/limits.d/*nproc.conf
+sed -i '/^# End of file/,$d' /etc/security/limits.conf
+cat >> /etc/security/limits.conf <<EOF
+# End of file
+* soft nproc 65535
+* hard nproc 65535
+* soft nofile 65535
+* hard nofile 65535
+EOF
+[ -z "`grep 'ulimit -SH 65535' /etc/rc.local`" ] && echo "ulimit -SH 65535" >> /etc/rc.local
+
+# /etc/sysctl.conf
+sed -i 's/net.ipv4.tcp_syncookies.*$/net.ipv4.tcp_syncookies = 1/g' /etc/sysctl.conf
+[ -z "`cat /etc/sysctl.conf | grep 'fs.file-max'`" ] && cat >> /etc/sysctl.conf << EOF
+fs.file-max=65535
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_tw_recycle = 1
+net.ipv4.ip_local_port_range = 1024 65000
+net.ipv4.tcp_max_syn_backlog = 65536
+net.ipv4.tcp_max_tw_buckets = 20000
+net.ipv4.route.gc_timeout = 100
+net.ipv4.tcp_syn_retries = 1
+net.ipv4.tcp_synack_retries = 1
+net.core.somaxconn = 65535
+net.core.netdev_max_backlog = 262144
+net.ipv4.tcp_timestamps = 0
+net.ipv4.tcp_max_orphans = 262144
+EOF
+sysctl -p
+
+
+设置nsqd topic
+命令格式如下：
+curl -X POST http://127.0.0.1:4151/topic/create?topic=name
+curl -X POST http://127.0.0.1:4151/channel/create?topic=name&channel=name
+
+[root@localhost config]# curl -X POST http://127.0.0.1:4151/topic/create?topic=crmpluginmsg
+[root@localhost config]# curl -X POST http://127.0.0.1:4151/topic/create?topic=crmqmsg
+[root@localhost config]# curl -X POST http://127.0.0.1:4151/topic/create?topic=crmwfmsg
+[root@localhost config]# curl -X POST http://127.0.0.1:4151/topic/create?topic=crmmsg
+
+nsq网站
+http://172.16.21.88:4171/counter
+
+
+部署网站
+执行该命令：
+32位机器：
+C:\Windows\Microsoft.NET\Framework\v4.0.30319\aspnet_regiis.exe -i
+64位机器：
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\aspnet_regiis.exe -i
+
+部署网站后，需要修改对应的web.config里的ip地址
+
+企业管理员帐号：
+18790298203
+1010063001
+xucx@hanwei.cn
+
+
+修改数据库的负载均衡串
+xwenterpriseserver 这个表 修改IP为对应的数据库IP
+例如替换172.16.21.80 ---->
+jdbc:postgresql://192.168.192.174:5432/xw_dl_1010063;userid=crm;password=crm@etion||jdbc:postgresql://192.168.192.174:5432/xw_dl_1010063;userid=crm;password=crm@etion
+
+IIS应用程序池要改成4.0
+
+nginx，上传配置文件到/etc/nginx
+重新加载nginx配置  [root@localhost nginx]# /etc/init.d/nginx reload
+
+代码修复：
+updateby crm_t_expandfield SET relationfieldgroup='xwplugin_ext_8_费用预算元' where xwentityregid='cf166786-3458-2493-7aa7-eab2622cb83f' AND xwfieldname='xwplugin_ext_8';
+COMMENT ON COLUMN "public"."crm_t_plugin_ext_cf166786345824937aa7eab2622cb83f"."xwplugin_ext_8" IS 'xwplugin_ext_8_费用预算元';
+
+
+--审批 请假单
+UPDATE crm_t_expandfield SET relationfieldgroup='xwplugin_ext_6_金额1元' where xwentityregid='823bdc4d-8960-159f-64cf-6949440f2d94' AND xwfieldname='xwplugin_ext_6';
+UPDATE crm_t_expandfield SET relationfieldgroup='xwplugin_ext_8_金额2元' where xwentityregid='823bdc4d-8960-159f-64cf-6949440f2d94' AND xwfieldname='xwplugin_ext_8';
+UPDATE crm_t_expandfield SET relationfieldgroup='xwplugin_ext_10_金额3元' where xwentityregid='823bdc4d-8960-159f-64cf-6949440f2d94' AND xwfieldname='xwplugin_ext_10';
+UPDATE crm_t_expandfield SET relationfieldgroup='xwplugin_ext_11_合计元' where xwentityregid='823bdc4d-8960-159f-64cf-6949440f2d94' AND xwfieldname='xwplugin_ext_11';
+COMMENT ON COLUMN "public"."crm_t_plugin_ext_823bdc4d8960159f64cf6949440f2d94"."xwplugin_ext_6" IS 'xwplugin_ext_6_金额1元';
+COMMENT ON COLUMN "public"."crm_t_plugin_ext_823bdc4d8960159f64cf6949440f2d94"."xwplugin_ext_8" IS 'xwplugin_ext_8_金额2元';
+COMMENT ON COLUMN "public"."crm_t_plugin_ext_823bdc4d8960159f64cf6949440f2d94"."xwplugin_ext_10" IS 'xwplugin_ext_10_金额3元';
+COMMENT ON COLUMN "public"."crm_t_plugin_ext_823bdc4d8960159f64cf6949440f2d94"."xwplugin_ext_11" IS 'xwplugin_ext_11_合计元';
+
+
+检查，判断crm_t_document_folder_visualscope表是否有（00000）记录，如果没有，则新增一条
+INSERT INTO "public"."crm_t_document_folder_visualscope" ("xwfolderid", "xwfoldername", "xwdepartmentids", "xwusernumbers", "xwcreatetime", "xwcreateby", "xwupdatetime", "xwupdateby", "xwpfolderid", "xwisleafnode", "xworder")
+VALUES ('00000000-0000-0000-0000-000000000000', '所有', NULL, NULL, '2015-12-14 17:18:07.672664+08', '683277', '2015-12-14 17:18:07.672664+08', '683277', NULL, 'f', NULL);
+
+放置安装包
+
+更换下载二维码：
+1.生成新的下载二维码图片qrcode.png(放在images目录下)，指向下载地址域名/download
+2.打开二维码（把页面中的hide属性去掉）
+
+更换下载地址链接：
+更新为新的下载文件
+
+添加完所有用户之后，重置密码为888888
+在xw_dc_center库执行以下语句
+UPDATE vs_t_account set xwpassword='21218cca77804d2ba1922c33e0151105' where xwusernumber!='683277';
+
+处理重复联系人问题
+WITH
+T1 AS (
+        SELECT DISTINCT xwcustid,xwcontactname,COUNT(1) as countnum from crm_t_contact WHERE xwstatus=1
+        GROUP by xwcustid,xwcontactname
+        having COUNT(1)>1
+),
+T2 AS (
+        SELECT c.* FROM crm_t_contact as c INNER JOIN T1 on c.xwcustid=T1.xwcustid AND c.xwcontactname=T1.xwcontactname
+                    WHERE c.xwstatus=1
+        order by c.xwcustid,c.xwcontactname
+),
+T3 AS (
+        SELECT DISTINCT ON(xwcustid,xwcontactname) * from T2
+),
+T4 AS (
+    SELECT xwcontactid FROM T2 WHERE xwcontactid NOT in(
+                SELECT xwcontactid FROM T3
+        )
+)
+UPDATE crm_t_contact SET xwstatus=0
+WHERE xwcontactid in (
+    SELECT xwcontactid FROM T4
+);
+
+
+删除重复的功能角色权限
+DELETE FROM crm_t_rolefunc_power WHERE xwrole_funid NOT in (
+      SELECT xwrole_funid FROM (
+                            SELECT DISTINCT ON(xwfun_powerid,roleid) * from crm_t_rolefunc_power
+      ) as t
+)
+
+
+
+测试的时候，需要还原正式和测试的数据库进行对比
+./createdb -E UTF8 -O etion -h localhost -U postgres xw_dl_1010068
+./pg_restore -h 127.0.0.1 -p 5432 -U postgres -W -d xw_dl_1010068 -v "/var/lib/pgsql/9.4/backups/xw_dl_1010068.backup"
+
+
